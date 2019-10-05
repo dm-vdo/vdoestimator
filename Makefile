@@ -32,7 +32,11 @@ LDLIBS = $(LIBUDS) -L$(LZ4_DIR) -llz4
 
 LDFLAGS = $(LDLIBS) -pthread
 
-CFLAGS += -iquote . -I$(UDS_DIR) -I$(LZ4_DIR) $(OPT_FLAGS)
+DEFINES = -D_GNU_SOURCE
+
+CDEBUGFLAGS =
+
+CFLAGS += $(DEFINES) -I$(UDS_DIR) -I$(LZ4_DIR) $(CDEBUGFLAGS)
 
 OBJECTS = vdoestimator.o block.o
 
@@ -46,7 +50,7 @@ clean:
 	$(RM) $(PROGS) $(OBJECTS) block.c
 
 vdoestimator: $(OBJECTS) $(DEPLIBS)
-	$(CC) -o $@ $(OBJECTS) $(OPT_FLAGS) $(LDFLAGS)
+	$(CC) -o $@ $(OBJECTS) $(CDEBUGFLAGS) $(LDFLAGS)
 
 block.c: $(KUDS_DIR)/block.c
 	ln -s $< $@
