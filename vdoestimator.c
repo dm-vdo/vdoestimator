@@ -27,12 +27,14 @@
 #include <err.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/queue.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -81,8 +83,8 @@ static void chunk_callback(struct udsRequest *request)
   }
   if (!request->found) {
     int compressed_size = LZ4_compress_default((char *)query->data, buf,
-					       (int)query->data_size,
-					       sizeof(buf));
+                                               (int)query->data_size,
+                                               sizeof(buf));
     if (compressed_size && compressed_size < query->data_size) {
       compressed_bytes += query->data_size - compressed_size;
       bytes_used += compressed_size;
@@ -113,16 +115,16 @@ static struct query *get_query(void)
     if (concurrent_requests < high) {
       query = malloc(sizeof(*query));
       if (!query) {
-	err(2, "Unable to allocate request");
+        err(2, "Unable to allocate request");
       }
       concurrent_requests++;
       if (peak_requests < concurrent_requests) {
-	peak_requests = concurrent_requests;
+        peak_requests = concurrent_requests;
       }
     } else {
       // Wait for one to be available
       if (pthread_cond_wait(&list_cond, &list_mutex)) {
-	err(2, "Unable to wait for a request");
+        err(2, "Unable to wait for a request");
       }
     }
   } else {
@@ -140,8 +142,8 @@ static void scan(char *file, UdsBlockContext context)
   int fd = open(file, O_RDONLY);
   if (fd < 0) {
     if (errno == EACCES || errno == EWOULDBLOCK || errno == EPERM
-	|| errno == ENOENT || errno == ENFILE || errno == ENAMETOOLONG
-	|| errno == EMFILE) {
+        || errno == ENOENT || errno == ENFILE || errno == ENAMETOOLONG
+        || errno == EMFILE) {
       files_skipped++;
       return;
     }
@@ -159,17 +161,17 @@ static void scan(char *file, UdsBlockContext context)
       err(1, "Unable to read '%s'", file);
     }
     if (nread == 0) {
-      break;			/* EOF */
+      break;                    /* EOF */
     }
     query->data_size = nread;
     total_bytes += nread;
     query->request = (struct udsRequest) {.callback  = chunk_callback,
-					  .context   = context,
-					  .type      = UDS_POST,
+                                          .context   = context,
+                                          .type      = UDS_POST,
     };
 
     MurmurHash3_x64_128 (query->data, nread, 0x62ea60be,
-			 &query->request.chunkName);
+                         &query->request.chunkName);
     int result = udsStartChunkOperation(&query->request);
     if (result != UDS_SUCCESS) {
       errx(1, "Unable to start request");
@@ -224,7 +226,7 @@ static void walk(char *root, UdsBlockContext context)
     if (actual == -1) {
       /* Check for eof */
       if (!feof(foundlist)) {
-	perror("Unable to read from subprocess");
+        perror("Unable to read from subprocess");
       }
       fclose(foundlist);
       break;
@@ -242,8 +244,51 @@ static void walk(char *root, UdsBlockContext context)
   }
 }
 
+/**
+ * Prints a usage string.
+ **/
+static void usage(char *prog)
+{
+  printf("Usage: %s [OPTION]... PATH\n"
+         "Estimate the storage savings that would be obtained by putting\n"
+         "the contents of a directory tree or device at PATH on a VDO\n"
+         "device.\n"
+         "\n"
+         "Options:\n"
+         "  --help    Print this help message and exit\n",
+         prog);
+}
+
+static int parse_args(int argc, char *argv[])
+{
+  static const char *optstring = "h";
+  static const struct option longopts[]
+    = {
+       {"help",    no_argument,       0,    'h'},
+       {0,         0,                 0,     0 }
+  };
+  int opt;
+  while ((opt = getopt_long(argc, argv, optstring, longopts, NULL)) != -1) {
+    switch(opt) {
+    case 'h':
+      usage(argv[0]);
+      _exit(0);
+      break;
+    default:
+      _exit(2);
+      break;
+    }
+  }
+  if (optind != argc - 1) {
+    fprintf(stderr, "Exactly one PATH argument is required.\n");
+    usage(argv[0]);
+    _exit(2);
+  }
+}
+
 int main(int argc, char *argv[])
 {
+  int path_count = parse_args(argc, argv);
   UdsConfiguration conf;
   int result = udsInitializeConfiguration(&conf, UDS_MEMORY_CONFIG_256MB);
   if (result != UDS_SUCCESS) {
@@ -261,15 +306,24 @@ int main(int argc, char *argv[])
     errx(1, "Unable to create block context");
   }
 
-  if (argc < 2) {
-    errx(1, "At least one argument required");
-  }
-
   pthread_mutex_init(&list_mutex, NULL);
   pthread_cond_init(&list_cond, NULL);
   
-  walk(argv[1], context);
-
+  while (optind < argc) {
+    char *path = argv[optind++];
+    struct stat statbuf;
+    if (stat(path, &statbuf)) {
+      err(1, "Unable to stat %s\n", path);
+    }
+    if (S_ISBLK(statbuf.st_mode)) {
+      scan(path, context);
+    } else if (S_ISDIR(statbuf.st_mode)) {
+      walk(path, context);
+    } else {
+      errx(2, "Argument must be a directory or block device");
+    }
+  }
+  
   result = udsFlushBlockContext(context);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to flush context");
