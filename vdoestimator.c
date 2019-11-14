@@ -55,7 +55,7 @@ static pthread_mutex_t list_mutex;
 static pthread_cond_t  list_cond;
 
 LIST_HEAD(query_list, query);
-static struct query_list queries= LIST_HEAD_INITIALIZER(query);
+static struct query_list queries = LIST_HEAD_INITIALIZER(query);
 
 #define DEFAULT_HIGH 2000
 #define DEFAULT_LOW  2000
@@ -70,6 +70,64 @@ static uint64_t total_bytes = 0;
 static uint64_t compressed_bytes = 0;
 static uint64_t bytes_used = 0;
 
+/**
+ * Gets a query from the lookaside list, or allocates one if possible.
+ **/
+static struct query *get_query(void)
+{
+  if (pthread_mutex_lock(&list_mutex)) {
+    err(2, "Unable to lock the mutex");
+  }
+  struct query *query = NULL;
+  do {
+    query = LIST_FIRST(&queries);
+    if (query) {
+      LIST_REMOVE(query, query_list);
+      break;
+    }
+    // If one was not immediately available, try to allocate one.
+    if (concurrent_requests < high) {
+      query = malloc(sizeof(*query));
+      if (query) {
+	concurrent_requests++;
+	if (peak_requests < concurrent_requests) {
+	  peak_requests = concurrent_requests;
+	}
+	break;
+      }
+    }
+    // If all else fails, wait for one to be available
+    if (pthread_cond_wait(&list_cond, &list_mutex)) {
+      err(2, "Unable to wait for a request");
+    }
+  } while (1);
+  if (pthread_mutex_unlock(&list_mutex)) {
+    err(2, "Unable to unlock the mutex");
+  }
+  return query;
+}
+
+/**
+ * Puts a query on the lookaside list, or frees it if above the low
+ * water mark.
+ **/
+static void put_query(struct query *query)
+{
+  if (pthread_mutex_lock(&list_mutex)) {
+    err(2, "Unable to lock the mutex");
+  }
+  if (concurrent_requests > low) {
+    free(query);
+    --concurrent_requests;
+  } else {
+    LIST_INSERT_HEAD(&queries, query, query_list);
+    pthread_cond_signal(&list_cond);
+  }
+  if (pthread_mutex_unlock(&list_mutex)) {
+    err(2, "Unable to unlock the mutex");
+  }
+}
+
 static void chunk_callback(struct udsRequest *request)
 {
   char buf[4096/2];
@@ -77,9 +135,7 @@ static void chunk_callback(struct udsRequest *request)
     errx(2, "Unsuccessful request %d", request->status);
   }
   struct query *query = container_of(request, struct query, request);
-  if (pthread_mutex_lock(&list_mutex)) {
-    err(2, "Unable to lock the mutex");
-  }
+  // If not found, i. e., a never seen before block, compute its compressability.
   if (!request->found) {
     int compressed_size = LZ4_compress_default((char *)query->data, buf,
                                                (int)query->data_size,
@@ -91,48 +147,8 @@ static void chunk_callback(struct udsRequest *request)
       bytes_used += query->data_size;
     }
   }
-  if (concurrent_requests <= high) {
-    LIST_INSERT_HEAD(&queries, query, query_list);
-    pthread_cond_signal(&list_cond);
-  } else if (concurrent_requests > low) {
-    free(query);
-    --concurrent_requests;
-  }
-  if (pthread_mutex_unlock(&list_mutex)) {
-    err(2, "Unable to unlock the mutex");
-  }
+  put_query(query);
   return;
-}
-
-static struct query *get_query(void)
-{
-  if (pthread_mutex_lock(&list_mutex)) {
-    err(2, "Unable to lock the mutex");
-  }
-  struct query *query = LIST_FIRST(&queries);
-  if (!query) {
-    if (concurrent_requests < high) {
-      query = malloc(sizeof(*query));
-      if (!query) {
-        err(2, "Unable to allocate request");
-      }
-      concurrent_requests++;
-      if (peak_requests < concurrent_requests) {
-        peak_requests = concurrent_requests;
-      }
-    } else {
-      // Wait for one to be available
-      if (pthread_cond_wait(&list_cond, &list_mutex)) {
-        err(2, "Unable to wait for a request");
-      }
-    }
-  } else {
-    LIST_REMOVE(query, query_list);
-  }
-  if (pthread_mutex_unlock(&list_mutex)) {
-    err(2, "Unable to unlock the mutex");
-  }
-  return query;
 }
 
 static void scan(char *file, UdsBlockContext context)
@@ -160,6 +176,7 @@ static void scan(char *file, UdsBlockContext context)
       err(1, "Unable to read '%s'", file);
     }
     if (nread == 0) {
+      put_query(query);
       break;                    /* EOF */
     }
     query->data_size = nread;
