@@ -10,13 +10,14 @@ git clone https://github.com/dm-vdo/kvdo
 
 Build the uds library:
 ~~~
-make -C $BUILD_DIR/vdo/utils/uds/
+cd   $BUILD_DIR/kvdo
+make -C /usr/src/kernels/`uname -r` M=`pwd`
 ~~~
 
 Get and build the LZ4 library:
 ~~~
 git clone https://github.com/lz4/lz4
-make -C $BUILD_DIR/lz4/lib/
+make -C $BUILD_DIR/lz4/ lib
 ~~~
 
 Get and build vdoestimator:
