@@ -288,17 +288,17 @@ static void usage(char *prog)
          "device.\n"
          "\n"
          "Options:\n"
-	 "  --compressionOnly Calculate compression only saving\n"
-	 "  --dedupeOnly      Calculate dedupe only saving\n"
+         "  --compressionOnly Calculate compression only saving\n"
+         "  --dedupeOnly      Calculate dedupe only saving\n"
          "  --help            Print this help message and exit\n"
-	 "  --index           Specify location and name of the UDS index file\n"
-	 "  --memorySize      Specifies the amount of UDS server memory in gigabytes;\n"
+         "  --index           Specify location and name of the UDS index file\n"
+         "  --memorySize      Specifies the amount of UDS server memory in gigabytes;\n"
          "                    the default size is 0.25 GB.\n"
-	 "                    The special decimal values 0.25, 0.5, 0.75 can be used\n"
-	 "                    as can any positive integer up to 1024.\n"
-	 "  --reload          Reload index file\n"
-	 "  --sparse          Set index file to sparse\n"
-	 "  --verbose         Verbose run\n",
+         "                    The special decimal values 0.25, 0.5, 0.75 can be used\n"
+         "                    as can any positive integer up to 1024.\n"
+         "  --reload          Reload index file\n"
+         "  --sparse          Set index file to sparse\n"
+         "  --verbose         Verbose run\n",
          prog);
 }
 
