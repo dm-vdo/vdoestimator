@@ -198,11 +198,11 @@ static void scan(char *file, UdsBlockContext context)
     query->data_size = nread;
     total_bytes += nread;
     query->request = (struct udsRequest) {.callback  = chunk_callback,
-					  .context   = context,
-					  .type      = UDS_POST,
+                                          .context   = context,
+                                          .type      = UDS_POST,
     };
     MurmurHash3_x64_128 (query->data, nread, 0x62ea60be,
-			 &query->request.chunkName);
+                         &query->request.chunkName);
     int result = udsStartChunkOperation(&query->request);
     if (result != UDS_SUCCESS) {
       errx(1, "Unable to start request");
