@@ -97,11 +97,11 @@ static struct query *get_query(void)
     if (concurrent_requests < high) {
       query = malloc(sizeof(*query));
       if (query) {
-	concurrent_requests++;
-	if (peak_requests < concurrent_requests) {
-	  peak_requests = concurrent_requests;
-	}
-	break;
+        concurrent_requests++;
+        if (peak_requests < concurrent_requests) {
+          peak_requests = concurrent_requests;
+        }
+        break;
       }
     }
     // If all else fails, wait for one to be available
@@ -140,8 +140,8 @@ static void try_compression(struct query *query)
 {
   char buf[4096/2];
   int compressed_size = LZ4_compress_default((char *)query->data, buf,
-					     (int)query->data_size,
-					     sizeof(buf));
+                                             (int)query->data_size,
+                                             sizeof(buf));
   if (compressed_size && compressed_size < query->data_size) {
     compressed_bytes += query->data_size - compressed_size;
     bytes_used += compressed_size;
@@ -338,18 +338,18 @@ static int parse_args(int argc, char *argv[])
       break;
     case 'm':
       if (strcmp("0.25", optarg) == 0)
-	mem_size = UDS_MEMORY_CONFIG_256MB;
+        mem_size = UDS_MEMORY_CONFIG_256MB;
       else if (strcmp("0.5", optarg) == 0)
-	mem_size = UDS_MEMORY_CONFIG_512MB;
+        mem_size = UDS_MEMORY_CONFIG_512MB;
       else if (strcmp("0.75", optarg) == 0)
-	mem_size = UDS_MEMORY_CONFIG_768MB;
+        mem_size = UDS_MEMORY_CONFIG_768MB;
       else {
         char *endptr = NULL;
         unsigned long n = strtoul(optarg, &endptr, 10);
-	if (*endptr != '\0' || n == 0 || n > UDS_MEMORY_CONFIG_MAX) {
-	  errx(1, "Illegal memory size, valid value: 1..1024, 0.25, 0.5, 0.75");
-	  _exit(2);
-	}
+        if (*endptr != '\0' || n == 0 || n > UDS_MEMORY_CONFIG_MAX) {
+          errx(1, "Illegal memory size, valid value: 1..1024, 0.25, 0.5, 0.75");
+          _exit(2);
+        }
         mem_size = (UdsMemoryConfigSize)n;
       }
       break;
@@ -454,7 +454,7 @@ int main(int argc, char *argv[])
 
   time_t time_passed = cstats.currentTime - start_time;
   printf("Duration: %dh:%dm:%ds\n",
-	 time_passed/3600, (time_passed%3600)/60, time_passed%60);
+         time_passed/3600, (time_passed%3600)/60, time_passed%60);
   printf("Sparse Index: %d\n", udsConfigurationGetSparse(conf));
   printf("Files scanned: %lu\n", files_scanned);
   printf("Files skipped: %lu\n", files_skipped);
@@ -463,7 +463,7 @@ int main(int argc, char *argv[])
   printf("Dedupe Request Posts found: %lu\n", cstats.postsFound);
   printf("Dedupe Request Posts not found: %lu\n", cstats.postsNotFound);
   printf("Dedupe Percentage: %2.3f%%\n",
-	 ((double)cstats.postsFound/(double)cstats.requests) * 100);
+         ((double)cstats.postsFound/(double)cstats.requests) * 100);
   double saved
      = (double)compressed_bytes / (double)total_bytes;
   printf("Compressed bytes: %lu\n", compressed_bytes);
