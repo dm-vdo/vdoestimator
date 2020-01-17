@@ -70,13 +70,13 @@ static uint64_t total_bytes = 0;
 static uint64_t compressed_bytes = 0;
 static uint64_t bytes_used = 0;
 
-static char *UDSIndex = NULL;
-static bool useSparse = false;
-static bool compressionOnly = false;
-static bool dedupeOnly = false;
+static char *uds_index = NULL;
+static bool use_sparse = false;
+static bool compression_only = false;
+static bool dedupe_only = false;
 static bool reload = false;
 static bool verbose = false;
-UdsMemoryConfigSize memSize;
+UdsMemoryConfigSize mem_size;
 
 /**
  * Gets a query from the lookaside list, or allocates one if possible.
@@ -97,11 +97,11 @@ static struct query *get_query(void)
     if (concurrent_requests < high) {
       query = malloc(sizeof(*query));
       if (query) {
-	concurrent_requests++;
-	if (peak_requests < concurrent_requests) {
-	  peak_requests = concurrent_requests;
-	}
-	break;
+        concurrent_requests++;
+        if (peak_requests < concurrent_requests) {
+          peak_requests = concurrent_requests;
+        }
+        break;
       }
     }
     // If all else fails, wait for one to be available
@@ -136,12 +136,12 @@ static void put_query(struct query *query)
   }
 }
 
-static void cal_compression(struct query *query)
+static void try_compression(struct query *query)
 {
   char buf[4096/2];
   int compressed_size = LZ4_compress_default((char *)query->data, buf,
-					     (int)query->data_size,
-					     sizeof(buf));
+                                             (int)query->data_size,
+                                             sizeof(buf));
   if (compressed_size && compressed_size < query->data_size) {
     compressed_bytes += query->data_size - compressed_size;
     bytes_used += compressed_size;
@@ -156,12 +156,13 @@ static void chunk_callback(struct udsRequest *request)
     errx(2, "Unsuccessful request %d", request->status);
   }
   struct query *query = container_of(request, struct query, request);
-  // If not found, i. e., a never seen before block, compute its compressability.
-  if (!request->found && !dedupeOnly)
-    cal_compression(query);
+  // If not found, i. e., a never seen before block, compute its
+  // compressability.
+  if (!request->found && !dedupe_only)
+    try_compression(query);
   else {
-    if(compressionOnly)
-      cal_compression(query);
+    if(compression_only)
+      try_compression(query);
   }
   put_query(query);
   return;
@@ -311,50 +312,52 @@ static int parse_args(int argc, char *argv[])
        {"dedupeOnly",       no_argument,       0,    'd'},
        {"help",             no_argument,       0,    'h'},
        {"index",            required_argument, 0,    'i'},
-       {"memorySize",       no_argument,       0,    'm'},
+       {"memorySize",       required_argument, 0,    'm'},
        {"reload",           no_argument,       0,    'r'},
        {"sparse",           no_argument,       0,    's'},
        {"verbose",          no_argument,       0,    'v'},
        {0,                  0,                 0,     0 }
   };
   int opt;
-  memSize = UDS_MEMORY_CONFIG_256MB;
+  mem_size = UDS_MEMORY_CONFIG_256MB;
 
   while ((opt = getopt_long(argc, argv, optstring, longopts, NULL)) != -1) {
     switch(opt) {
     case 'c':
-      compressionOnly=true;
+      compression_only=true;
       break;
     case 'd':
-      dedupeOnly=true;
+      dedupe_only=true;
       break;
     case 'h':
       usage(argv[0]);
       _exit(0);
       break;
     case 'i':
-      UDSIndex = optarg;
+      uds_index = optarg;
       break;
     case 'm':
       if (strcmp("0.25", optarg) == 0)
-	memSize = UDS_MEMORY_CONFIG_256MB;
+        mem_size = UDS_MEMORY_CONFIG_256MB;
       else if (strcmp("0.5", optarg) == 0)
-	memSize = UDS_MEMORY_CONFIG_512MB;
+        mem_size = UDS_MEMORY_CONFIG_512MB;
       else if (strcmp("0.75", optarg) == 0)
-	memSize = UDS_MEMORY_CONFIG_768MB;
+        mem_size = UDS_MEMORY_CONFIG_768MB;
       else {
-	memSize = (UdsMemoryConfigSize)atoi(optarg);
-	if (memSize > UDS_MEMORY_CONFIG_MAX || memSize == 0) {
-	  errx(1, "Illegal memory size, valid value: 1..1024, 0.25, 0.5, 0.75");
-	  _exit(2);
-	}
+        char *endptr = NULL;
+        unsigned long n = strtoul(optarg, &endptr, 10);
+        if (*endptr != '\0' || n == 0 || n > UDS_MEMORY_CONFIG_MAX) {
+          errx(1, "Illegal memory size, valid value: 1..1024, 0.25, 0.5, 0.75");
+          _exit(2);
+        }
+        mem_size = (UdsMemoryConfigSize)n;
       }
       break;
     case 'r':
       reload = true;
       break;
     case 's':
-      useSparse = true;
+      use_sparse = true;
       break;
     case 'v':
       verbose = true;
@@ -370,12 +373,12 @@ static int parse_args(int argc, char *argv[])
     usage(argv[0]);
     _exit(2);
   }
-  if (UDSIndex == NULL) {
+  if (uds_index == NULL) {
     printf("Index file is required\n");
     usage(argv[0]);
     _exit(2);
   }
-  if (compressionOnly && dedupeOnly) {
+  if (compression_only && dedupe_only) {
     printf("Option conflict, please only use -c or -d\n");
     _exit(2);
   }
@@ -384,32 +387,30 @@ static int parse_args(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
   int path_count = parse_args(argc, argv);
-  time_t startTime = time(0);
+  time_t start_time = time(0);
 
   UdsConfiguration conf;
 
-  int result = udsInitializeConfiguration(&conf, memSize);
+  int result = udsInitializeConfiguration(&conf, mem_size);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to initialize configuration");
   }
 
+  udsConfigurationSetSparse(conf, use_sparse);
+
   UdsIndexSession session;
   if (reload) {
-    result = udsLoadLocalIndex(UDSIndex, &session);
+    result = udsLoadLocalIndex(uds_index, &session);
     if (result != UDS_SUCCESS) {
       errx(1, "Unable to reload local index");
     }
   } else {
-    result = udsCreateLocalIndex(UDSIndex, conf, &session);
+    result = udsCreateLocalIndex(uds_index, conf, &session);
     if (result != UDS_SUCCESS) {
       errx(1, "Unable to create local index");
     }
   }
   
-  if (useSparse) {
-    udsConfigurationSetSparse(conf, true);
-  }
-
   UdsBlockContext context;
   result = udsOpenBlockContext(session, 16, &context);
   if (result != UDS_SUCCESS) {
@@ -451,19 +452,18 @@ int main(int argc, char *argv[])
     errx(1, "Unable to get index stats");
   }
 
-  time_t timePassed = cstats.currentTime - startTime;
+  time_t time_passed = cstats.currentTime - start_time;
   printf("Duration: %dh:%dm:%ds\n",
-	 timePassed/3600, (timePassed%3600)/60, timePassed%60);
-  printf("Sparse Index: %d\n",
-	 udsConfigurationGetSparse(conf));
+         time_passed/3600, (time_passed%3600)/60, time_passed%60);
+  printf("Sparse Index: %d\n", udsConfigurationGetSparse(conf));
   printf("Files scanned: %lu\n", files_scanned);
   printf("Files skipped: %lu\n", files_skipped);
   printf("Bytes scanned: %lu\n", total_bytes);
-  printf("Entries indexed: %ld\n", stats.entriesIndexed);
-  printf("Dedupe Request Posts found: %ld\n", cstats.postsFound);
-  printf("Dedupe Request Posts not found: %ld\n", cstats.postsNotFound);
+  printf("Entries indexed: %lu\n", stats.entriesIndexed);
+  printf("Dedupe Request Posts found: %lu\n", cstats.postsFound);
+  printf("Dedupe Request Posts not found: %lu\n", cstats.postsNotFound);
   printf("Dedupe Percentage: %2.3f%%\n",
-	 ((double)cstats.postsFound/(double)cstats.requests) * 100);
+         ((double)cstats.postsFound/(double)cstats.requests) * 100);
   double saved
      = (double)compressed_bytes / (double)total_bytes;
   printf("Compressed bytes: %lu\n", compressed_bytes);
@@ -472,7 +472,7 @@ int main(int argc, char *argv[])
   saved = ((double)total_bytes - (double)bytes_used) / (double)total_bytes; 
   printf("Total percent saved: %2.3f%%\n", saved * 100.0);
   printf("Peak concurrent requests: %u\n", peak_requests);
-  printf("Estimate index size: %2.3fM\n", stats.diskUsed/(1024*1024));
+  printf("Estimate index size: %luM\n", stats.diskUsed/(1024*1024));
 
   result = udsCloseBlockContext(context);
   if (result != UDS_SUCCESS) {
