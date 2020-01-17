@@ -75,7 +75,8 @@ static char *uds_index = NULL;
 static bool use_sparse = false;
 static bool compression_only = false;
 static bool dedupe_only = false;
-static bool reload = false;
+static bool reuse = false;
+static bool mem_modified = false;
 static bool verbose = false;
 UdsMemoryConfigSize mem_size;
 
@@ -291,14 +292,14 @@ static void usage(char *prog)
          "\n"
          "Options:\n"
          "  --compressionOnly Calculate compression only saving\n"
-         "  --dedupeOnly      Calculate dedupe only saving\n"
+         "  --dedupeOnly      Calculate deduplication\n"
          "  --help            Print this help message and exit\n"
-         "  --index           Specify location and name of the UDS index file\n"
+         "  --index           Specify the location and name of the UDS index file\n"
          "  --memorySize      Specifies the amount of UDS server memory in gigabytes;\n"
          "                    the default size is 0.25 GB.\n"
          "                    The special decimal values 0.25, 0.5, 0.75 can be used\n"
          "                    as can any positive integer up to 1024.\n"
-         "  --reload          Reload index file\n"
+         "  --reuse           Reuse index file\n"
          "  --sparse          Set index file to sparse\n"
          "  --verbose         Verbose run\n",
          prog);
@@ -314,7 +315,7 @@ static int parse_args(int argc, char *argv[])
        {"help",             no_argument,       0,    'h'},
        {"index",            required_argument, 0,    'i'},
        {"memorySize",       required_argument, 0,    'm'},
-       {"reload",           no_argument,       0,    'r'},
+       {"reuse",            no_argument,       0,    'r'},
        {"sparse",           no_argument,       0,    's'},
        {"verbose",          no_argument,       0,    'v'},
        {0,                  0,                 0,     0 }
@@ -338,6 +339,7 @@ static int parse_args(int argc, char *argv[])
       uds_index = optarg;
       break;
     case 'm':
+      mem_modified = true;
       if (strcmp("0.25", optarg) == 0)
         mem_size = UDS_MEMORY_CONFIG_256MB;
       else if (strcmp("0.5", optarg) == 0)
@@ -355,7 +357,7 @@ static int parse_args(int argc, char *argv[])
       }
       break;
     case 'r':
-      reload = true;
+      reuse = true;
       break;
     case 's':
       use_sparse = true;
@@ -383,6 +385,11 @@ static int parse_args(int argc, char *argv[])
     printf("Option conflict, please only use -c or -d\n");
     _exit(2);
   }
+  if (reuse && (mem_modified || use_sparse)) {
+    printf("Option conflict, cannot reuse index file ");
+    printf("while memory or index file style changed\n");
+    _exit(2);
+  }
 }
 
 int main(int argc, char *argv[])
@@ -400,10 +407,10 @@ int main(int argc, char *argv[])
   udsConfigurationSetSparse(conf, use_sparse);
 
   UdsIndexSession session;
-  if (reload) {
+  if (reuse) {
     result = udsLoadLocalIndex(uds_index, &session);
     if (result != UDS_SUCCESS) {
-      errx(1, "Unable to reload local index");
+      errx(1, "Unable to reuse local index");
     }
   } else {
     result = udsCreateLocalIndex(uds_index, conf, &session);
@@ -457,23 +464,23 @@ int main(int argc, char *argv[])
   printf("Duration: %dh:%dm:%ds\n",
          time_passed/3600, (time_passed%3600)/60, time_passed%60);
   printf("Sparse Index: %d\n", udsConfigurationGetSparse(conf));
-  printf("Files scanned: %lu\n", files_scanned);
-  printf("Files skipped: %lu\n", files_skipped);
-  printf("Bytes scanned: %lu\n", total_bytes);
-  printf("Entries indexed: %lu\n", stats.entriesIndexed);
-  printf("Dedupe Request Posts found: %lu\n", cstats.postsFound);
-  printf("Dedupe Request Posts not found: %lu\n", cstats.postsNotFound);
+  printf("Files Scanned: %lu\n", files_scanned);
+  printf("Files Skipped: %lu\n", files_skipped);
+  printf("Bytes Scanned: %lu\n", total_bytes);
+  printf("Entries Indexed: %lu\n", stats.entriesIndexed);
+  printf("Dedupe Request Posts Found: %lu\n", cstats.postsFound);
+  printf("Dedupe Request Posts Not Found: %lu\n", cstats.postsNotFound);
   printf("Dedupe Percentage: %2.3f%%\n",
          ((double)cstats.postsFound/(double)cstats.requests) * 100);
   double saved
      = (double)compressed_bytes / (double)total_bytes;
-  printf("Compressed bytes: %lu\n", compressed_bytes);
-  printf("Percent saved compression: %2.3f%%\n", saved * 100.0);
-  printf("Total bytes used: %lu\n", bytes_used);
+  printf("Compressed Bytes: %lu\n", compressed_bytes);
+  printf("Percent Saved Compression: %2.3f%%\n", saved * 100.0);
+  printf("Total Bytes Used: %lu\n", bytes_used);
   saved = ((double)total_bytes - (double)bytes_used) / (double)total_bytes; 
-  printf("Total percent saved: %2.3f%%\n", saved * 100.0);
-  printf("Peak concurrent requests: %u\n", peak_requests);
-  printf("Estimate index size: %luM\n", stats.diskUsed/(1024*1024));
+  printf("Total Percent Saved: %2.3f%%\n", saved * 100.0);
+  printf("Peak Concurrent Requests: %u\n", peak_requests);
+  printf("Estimate Index Size: %luM\n", stats.diskUsed/(1024*1024));
 
   result = udsCloseBlockContext(context);
   if (result != UDS_SUCCESS) {
