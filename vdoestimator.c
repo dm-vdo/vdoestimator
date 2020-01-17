@@ -291,8 +291,8 @@ static void usage(char *prog)
          "device.\n"
          "\n"
          "Options:\n"
-         "  --compressionOnly Calculate compression only saving\n"
-         "  --dedupeOnly      Calculate deduplication\n"
+         "  --compressionOnly Calculate compression savings only\n"
+         "  --dedupeOnly      Calculate deduplication savings only\n"
          "  --help            Print this help message and exit\n"
          "  --index           Specify the location and name of the UDS index file\n"
          "  --memorySize      Specifies the amount of UDS server memory in gigabytes;\n"
@@ -300,7 +300,7 @@ static void usage(char *prog)
          "                    The special decimal values 0.25, 0.5, 0.75 can be used\n"
          "                    as can any positive integer up to 1024.\n"
          "  --reuse           Reuse index file\n"
-         "  --sparse          Set index file to sparse\n"
+         "  --sparse          Use a sparse index\n"
          "  --verbose         Verbose run\n",
          prog);
 }
@@ -382,12 +382,11 @@ static int parse_args(int argc, char *argv[])
     _exit(2);
   }
   if (compression_only && dedupe_only) {
-    printf("Option conflict, please only use -c or -d\n");
+    printf("--compressOnly and --dedupeOnly may not be used together\n");
     _exit(2);
   }
   if (reuse && (mem_modified || use_sparse)) {
-    printf("Option conflict, cannot reuse index file ");
-    printf("while memory or index file style changed\n");
+    printf("--reuse may not be combined with --memorySize or --sparse\n");
     _exit(2);
   }
 }
@@ -410,7 +409,7 @@ int main(int argc, char *argv[])
   if (reuse) {
     result = udsLoadLocalIndex(uds_index, &session);
     if (result != UDS_SUCCESS) {
-      errx(1, "Unable to reuse local index");
+      errx(1, "Unable to reuse index");
     }
   } else {
     result = udsCreateLocalIndex(uds_index, conf, &session);
@@ -480,8 +479,10 @@ int main(int argc, char *argv[])
   saved = ((double)total_bytes - (double)bytes_used) / (double)total_bytes; 
   printf("Total Percent Saved: %2.3f%%\n", saved * 100.0);
   printf("Peak Concurrent Requests: %u\n", peak_requests);
+#if 0
+  // uds does not return the corrent index size
   printf("Estimate Index Size: %luM\n", stats.diskUsed/(1024*1024));
-
+#endif
   result = udsCloseBlockContext(context);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to close context");
