@@ -20,12 +20,16 @@
 # $Id$
 ##
 
-BUILD_DIR=..
+BUILDROOT = download
 
-UDS_DIR = $(BUILD_DIR)/vdo/utils/uds
-KUDS_DIR = $(BUILD_DIR)/kvdo/uds
+bindir ?= /usr/bin
+INSTALLDIR = $(DESTDIR)$(bindir)
+INSTALL = install
+INSTALLOWNER ?= -o root -g root
+
+UDS_DIR = $(BUILDROOT)/vdo/utils/uds
 LIBUDS=$(UDS_DIR)/libuds.a
-LZ4_DIR = $(BUILD_DIR)/lz4/lib
+LZ4_DIR = $(BUILDROOT)/lz4/lib
 LIBLZ4=$(LZ4_DIR)/liblz4.a
 
 DEPLIBS = $(LIBUDS) $(LIBLZ4)
@@ -45,12 +49,31 @@ SOURCES = $(OBJECTS:%.o=%.c)
 
 PROGS = vdoestimator
 
-all: $(PROGS)
+SUBPROGS = lz4 uds
+
+all: third $(PROGS)
 
 clean:
 	$(RM) $(PROGS) $(OBJECTS)
+	$(RM) -r $(BUILDROOT)
+
+download:
+	mkdir -p $(BUILDROOT)
+	git clone https://github.com/lz4/lz4 $(BUILDROOT)/lz4
+	git clone https://github.com/dm-vdo/vdo $(BUILDROOT)/vdo
+
+install: all
+	$(INSTALL) $(INSTALLOWNER) -m 0755 vdoestimator $(INSTALLDIR)
+
+lz4: download
+	$(MAKE) -C $(LZ4_DIR)
+
+third: $(SUBPROGS)
+
+uds: download
+	$(MAKE) -C $(UDS_DIR)
 
 vdoestimator: $(OBJECTS) $(DEPLIBS)
 	$(CC) -o $@ $(OBJECTS) $(CDEBUGFLAGS) $(LDFLAGS)
 
-
+.PHONY = install clean
