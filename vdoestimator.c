@@ -170,7 +170,7 @@ static void chunk_callback(struct udsRequest *request)
   return;
 }
 
-static void scan(char *file, UdsBlockContext context)
+static void scan(char *file, struct uds_index_session *session)
 {
   //printf("scanning %s\n", file);
   int fd = open(file, O_RDONLY);
@@ -201,7 +201,7 @@ static void scan(char *file, UdsBlockContext context)
     query->data_size = nread;
     total_bytes += nread;
     query->request = (struct udsRequest) {.callback  = chunk_callback,
-                                          .context   = context,
+                                          .session   = session,
                                           .type      = UDS_POST,
     };
     MurmurHash3_x64_128 (query->data, nread, 0x62ea60be,
@@ -215,7 +215,7 @@ static void scan(char *file, UdsBlockContext context)
   close(fd);
 }
 
-static void walk(char *root, UdsBlockContext context)
+static void walk(char *root, struct uds_index_session *session)
 {
   int fds[2];
   int result = pipe(fds);
@@ -269,7 +269,7 @@ static void walk(char *root, UdsBlockContext context)
       linep[actual - 1] = '\000';
     if (verbose)
       printf("Scanning file %s\n", linep);
-    scan(linep, context);
+    scan(linep, session);
     free(linep);
     linep = NULL;
     count = 0;
@@ -405,25 +405,20 @@ int main(int argc, char *argv[])
 
   udsConfigurationSetSparse(conf, use_sparse);
 
-  UdsIndexSession session;
-  if (reuse) {
-    result = udsLoadLocalIndex(uds_index, &session);
-    if (result != UDS_SUCCESS) {
-      errx(1, "Unable to reuse index");
-    }
-  } else {
-    result = udsCreateLocalIndex(uds_index, conf, &session);
-    if (result != UDS_SUCCESS) {
-      errx(1, "Unable to create local index");
-    }
-  }
-  
-  UdsBlockContext context;
-  result = udsOpenBlockContext(session, 16, &context);
+  struct uds_index_session *session;
+  result = udsCreateIndexSession(&session);
   if (result != UDS_SUCCESS) {
-    errx(1, "Unable to create block context");
+    errx(1, "Unable to create an index session");
   }
 
+  const struct uds_parameters params = UDS_PARAMETERS_INITIALIZER;
+
+  result = udsOpenIndex(reuse ? UDS_LOAD : UDS_CREATE,
+                        uds_index, &params, conf, session);
+  if (result != UDS_SUCCESS) {
+    errx(1, "Unable to open the index");
+  }
+  
   pthread_mutex_init(&list_mutex, NULL);
   pthread_cond_init(&list_cond, NULL);
   
@@ -434,21 +429,21 @@ int main(int argc, char *argv[])
       err(1, "Unable to stat %s\n", path);
     }
     if (S_ISBLK(statbuf.st_mode)) {
-      scan(path, context);
+      scan(path, session);
     } else if (S_ISDIR(statbuf.st_mode)) {
-      walk(path, context);
+      walk(path, session);
     } else {
       errx(2, "Argument must be a directory or block device");
     }
   }
-  
-  result = udsFlushBlockContext(context);
+
+  result = udsSuspendIndexSession(session, 0);
   if (result != UDS_SUCCESS) {
-    errx(1, "Unable to flush context");
+    errx(1, "Unable to suspend the index session");
   }
 
   struct udsContextStats cstats;
-  result = udsGetBlockContextStats(context, &cstats);
+  result = udsGetIndexSessionStats(session, &cstats);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to get context stats");
   }
@@ -483,14 +478,13 @@ int main(int argc, char *argv[])
   // uds does not return the corrent index size
   printf("Estimate Index Size: %luM\n", stats.diskUsed/(1024*1024));
 #endif
-  result = udsCloseBlockContext(context);
+  result = udsResumeIndexSession(session);
   if (result != UDS_SUCCESS) {
-    errx(1, "Unable to close context");
+    errx(1, "Unable to resume the index");
   }
-
-  result = udsCloseIndexSession(session);
+  result = udsCloseIndex(session);
   if (result != UDS_SUCCESS) {
-    errx(1, "Unable to close index");
+    errx(1, "Unable to close the index");
   }
   pthread_mutex_destroy(&list_mutex);
   return 0;

@@ -1,11 +1,10 @@
 In the following instructions, $BUILD_DIR will refer to the directory
 in which you build the software.
 
-Get the vdo and kvdo packages:
+Get the vdo package:
 ~~~
 cd $BUILD_DIR
 git clone https://github.com/dm-vdo/vdo
-git clone https://github.com/dm-vdo/kvdo
 ~~~
 
 Build the uds library:
