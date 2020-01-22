@@ -21,6 +21,6 @@ make -C $BUILD_DIR/lz4/lib/
 
 Get and build vdoestimator:
 ~~~
-git clone https://github.com/wieleassociates/vdoestimator
+git clone https://github.com/dm-vdo/vdoestimator
 make -C $BUILD_DIR/vdoestimator/
 ~~~
