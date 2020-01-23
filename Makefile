@@ -38,7 +38,7 @@ CDEBUGFLAGS =
 
 CFLAGS += $(DEFINES) -I$(UDS_DIR) -I$(LZ4_DIR) $(CDEBUGFLAGS)
 
-OBJECTS = vdoestimator.o block.o
+OBJECTS = vdoestimator.o
 
 SOURCES = $(OBJECTS:%.o=%.c)
 
@@ -47,11 +47,9 @@ PROGS = vdoestimator
 all: $(PROGS)
 
 clean:
-	$(RM) $(PROGS) $(OBJECTS) block.c
+	$(RM) $(PROGS) $(OBJECTS)
 
 vdoestimator: $(OBJECTS) $(DEPLIBS)
 	$(CC) -o $@ $(OBJECTS) $(CDEBUGFLAGS) $(LDFLAGS)
 
-block.c: $(KUDS_DIR)/block.c
-	ln -s $< $@
 

@@ -1,8 +1,8 @@
 
-The purpose of vdoestimator is to estimate how much space VDO can save
-on your server before you install and run it. vdoestimator can also be
-used to test whether or not your dedupe rate will be affected by using
-different memory size and also indicate which type of index to use.
+vdoestimator can be used to estimate how much space VDO can save
+before creating a VDO volume. It can also be used to estimate the
+effect of configuring the index with the memorySize and sparse
+options.
 
 Usage:
 
@@ -11,7 +11,7 @@ Usage:
 There are several options one can use in vdoestimator:
 
   vdoestimator  --help
-  vdoestimator [OPTION]... dataPATH
+  vdoestimator [OPTION]... PATH
 
   Options:
     --compressionOnly Calculate compression only saving
@@ -20,12 +20,12 @@ There are several options one can use in vdoestimator:
     --index           Specify the location and name of the UDS index file (required)
     --memorySize      Specifies the amount of UDS server memory in gigabytes (the default size is 0.25 GB). The special decimal values 0.25, 0.5 and 0.75 can be used as can any positive integer up to 1024.
     --reuse           Reuse an existing index file
-    --sparse          Set index file to sparse
+    --sparse          Use a sparse index
     --verbose         Verbose run
 
 There are two required arguments:
     --index   Specify the location and name of the UDS index file
-    dataPath  Where your data is.  This can also be a block device.
+    PATH      A directory tree or block device to be scanned
 
 Changing the memorySize or sparse index may indicate a better storage
 savings rate.  Please refer to VDO documentation for the effect of
@@ -54,5 +54,4 @@ Percent Saved Compression: 6.191%
 Total Bytes Used: 141808225265
 Total Percent Saved: 72.234%
 Peak Concurrent Requests: 2000
-Estimate Index Size: 72.234M
 

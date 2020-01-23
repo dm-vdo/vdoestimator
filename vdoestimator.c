@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Wiele Associates.
+ * Copyright (c) 2020 Red Hat, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -169,7 +170,7 @@ static void chunk_callback(struct udsRequest *request)
   return;
 }
 
-static void scan(char *file, UdsBlockContext context)
+static void scan(char *file, struct uds_index_session *session)
 {
   //printf("scanning %s\n", file);
   int fd = open(file, O_RDONLY);
@@ -200,7 +201,7 @@ static void scan(char *file, UdsBlockContext context)
     query->data_size = nread;
     total_bytes += nread;
     query->request = (struct udsRequest) {.callback  = chunk_callback,
-                                          .context   = context,
+                                          .session   = session,
                                           .type      = UDS_POST,
     };
     MurmurHash3_x64_128 (query->data, nread, 0x62ea60be,
@@ -214,7 +215,7 @@ static void scan(char *file, UdsBlockContext context)
   close(fd);
 }
 
-static void walk(char *root, UdsBlockContext context)
+static void walk(char *root, struct uds_index_session *session)
 {
   int fds[2];
   int result = pipe(fds);
@@ -268,7 +269,7 @@ static void walk(char *root, UdsBlockContext context)
       linep[actual - 1] = '\000';
     if (verbose)
       printf("Scanning file %s\n", linep);
-    scan(linep, context);
+    scan(linep, session);
     free(linep);
     linep = NULL;
     count = 0;
@@ -290,8 +291,8 @@ static void usage(char *prog)
          "device.\n"
          "\n"
          "Options:\n"
-         "  --compressionOnly Calculate compression only saving\n"
-         "  --dedupeOnly      Calculate deduplication\n"
+         "  --compressionOnly Calculate compression savings only\n"
+         "  --dedupeOnly      Calculate deduplication savings only\n"
          "  --help            Print this help message and exit\n"
          "  --index           Specify the location and name of the UDS index file\n"
          "  --memorySize      Specifies the amount of UDS server memory in gigabytes;\n"
@@ -299,7 +300,7 @@ static void usage(char *prog)
          "                    The special decimal values 0.25, 0.5, 0.75 can be used\n"
          "                    as can any positive integer up to 1024.\n"
          "  --reuse           Reuse index file\n"
-         "  --sparse          Set index file to sparse\n"
+         "  --sparse          Use a sparse index\n"
          "  --verbose         Verbose run\n",
          prog);
 }
@@ -381,7 +382,11 @@ static int parse_args(int argc, char *argv[])
     _exit(2);
   }
   if (compression_only && dedupe_only) {
-    printf("Option conflict, please only use -c or -d\n");
+    printf("--compressOnly and --dedupeOnly may not be used together\n");
+    _exit(2);
+  }
+  if (reuse && (mem_modified || use_sparse)) {
+    printf("--reuse may not be combined with --memorySize or --sparse\n");
     _exit(2);
   }
   if (reuse && (mem_modified || use_sparse)) {
@@ -405,25 +410,20 @@ int main(int argc, char *argv[])
 
   udsConfigurationSetSparse(conf, use_sparse);
 
-  UdsIndexSession session;
-  if (reuse) {
-    result = udsLoadLocalIndex(uds_index, &session);
-    if (result != UDS_SUCCESS) {
-      errx(1, "Unable to reuse local index");
-    }
-  } else {
-    result = udsCreateLocalIndex(uds_index, conf, &session);
-    if (result != UDS_SUCCESS) {
-      errx(1, "Unable to create local index");
-    }
-  }
-  
-  UdsBlockContext context;
-  result = udsOpenBlockContext(session, 16, &context);
+  struct uds_index_session *session;
+  result = udsCreateIndexSession(&session);
   if (result != UDS_SUCCESS) {
-    errx(1, "Unable to create block context");
+    errx(1, "Unable to create an index session");
   }
 
+  const struct uds_parameters params = UDS_PARAMETERS_INITIALIZER;
+
+  result = udsOpenIndex(reuse ? UDS_LOAD : UDS_CREATE,
+                        uds_index, &params, conf, session);
+  if (result != UDS_SUCCESS) {
+    errx(1, "Unable to open the index");
+  }
+  
   pthread_mutex_init(&list_mutex, NULL);
   pthread_cond_init(&list_cond, NULL);
   
@@ -434,21 +434,21 @@ int main(int argc, char *argv[])
       err(1, "Unable to stat %s\n", path);
     }
     if (S_ISBLK(statbuf.st_mode)) {
-      scan(path, context);
+      scan(path, session);
     } else if (S_ISDIR(statbuf.st_mode)) {
-      walk(path, context);
+      walk(path, session);
     } else {
       errx(2, "Argument must be a directory or block device");
     }
   }
-  
-  result = udsFlushBlockContext(context);
+
+  result = udsSuspendIndexSession(session, 0);
   if (result != UDS_SUCCESS) {
-    errx(1, "Unable to flush context");
+    errx(1, "Unable to suspend the index session");
   }
 
   struct udsContextStats cstats;
-  result = udsGetBlockContextStats(context, &cstats);
+  result = udsGetIndexSessionStats(session, &cstats);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to get context stats");
   }
@@ -479,16 +479,17 @@ int main(int argc, char *argv[])
   saved = ((double)total_bytes - (double)bytes_used) / (double)total_bytes; 
   printf("Total Percent Saved: %2.3f%%\n", saved * 100.0);
   printf("Peak Concurrent Requests: %u\n", peak_requests);
+#if 0
+  // uds does not return the corrent index size
   printf("Estimate Index Size: %luM\n", stats.diskUsed/(1024*1024));
-
-  result = udsCloseBlockContext(context);
+#endif
+  result = udsResumeIndexSession(session);
   if (result != UDS_SUCCESS) {
-    errx(1, "Unable to close context");
+    errx(1, "Unable to resume the index");
   }
-
-  result = udsCloseIndexSession(session);
+  result = udsCloseIndex(session);
   if (result != UDS_SUCCESS) {
-    errx(1, "Unable to close index");
+    errx(1, "Unable to close the index");
   }
   pthread_mutex_destroy(&list_mutex);
   return 0;
