@@ -4,10 +4,12 @@ This is a tool to estimate space savings from the dm-vdo device mapper
 device
 
 # DEPENDENCIES
-This project requires gcc to be installed
+This project requires gcc to be installed.
+
+This project also requires the UDS software as well as LZ4 compression software to compile.
 
 # BUILDING
-To build all of the dependencies and this project, run:
+To build vdoestimator and all of the projects to which it depends, run:
 ~~~
 make
 ~~~
