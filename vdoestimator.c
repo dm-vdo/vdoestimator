@@ -30,6 +30,7 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <pthread.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -60,6 +61,7 @@ static struct query_list queries = LIST_HEAD_INITIALIZER(query);
 
 #define DEFAULT_HIGH 2000
 #define DEFAULT_LOW  2000
+#define ALRAM_INTERVAL 30
 static unsigned int high = DEFAULT_HIGH;
 static unsigned int low =  DEFAULT_LOW;
 static unsigned int concurrent_requests = 0;
@@ -78,6 +80,7 @@ static bool dedupe_only = false;
 static bool reuse = false;
 static bool mem_modified = false;
 static bool verbose = false;
+static char current_file[PATH_MAX];
 UdsMemoryConfigSize mem_size;
 
 /**
@@ -269,6 +272,7 @@ static void walk(char *root, struct uds_index_session *session)
       linep[actual - 1] = '\000';
     if (verbose)
       printf("Scanning file %s\n", linep);
+    strcpy(current_file, linep);
     scan(linep, session);
     free(linep);
     linep = NULL;
@@ -278,6 +282,16 @@ static void walk(char *root, struct uds_index_session *session)
   if (waitpid(child, &wstatus, 0) != child) {
     err(2, "Unable to finish subprocess");
   }
+}
+
+static void print_progress()
+{
+/**
+ * Print current file name that is being process
+ **/
+  printf("Processing File: %s\n", current_file);
+  printf("Total Bytes Scanned: %lu\n", total_bytes);
+  alarm(ALRAM_INTERVAL);
 }
 
 /**
@@ -301,13 +315,14 @@ static void usage(char *prog)
          "                    as can any positive integer up to 1024.\n"
          "  --reuse           Reuse index file\n"
          "  --sparse          Use a sparse index\n"
+	 "  --progress        Print scan progress in interval\n"
          "  --verbose         Verbose run\n",
          prog);
 }
 
 static int parse_args(int argc, char *argv[])
 {
-  static const char *optstring = "cdhi:m:rsv";
+  static const char *optstring = "cdhi:m:prsv";
   static const struct option longopts[]
     = {
        {"compressionOnly",  no_argument,       0,    'c'},
@@ -315,6 +330,7 @@ static int parse_args(int argc, char *argv[])
        {"help",             no_argument,       0,    'h'},
        {"index",            required_argument, 0,    'i'},
        {"memorySize",       required_argument, 0,    'm'},
+       {"progress",         no_argument,       0,    'p'},
        {"reuse",            no_argument,       0,    'r'},
        {"sparse",           no_argument,       0,    's'},
        {"verbose",          no_argument,       0,    'v'},
@@ -356,6 +372,10 @@ static int parse_args(int argc, char *argv[])
         mem_size = (UdsMemoryConfigSize)n;
       }
       break;
+    case 'p':
+      alarm(ALRAM_INTERVAL);
+      signal(SIGALRM, print_progress);
+      break;
     case 'r':
       reuse = true;
       break;
@@ -387,11 +407,6 @@ static int parse_args(int argc, char *argv[])
   }
   if (reuse && (mem_modified || use_sparse)) {
     printf("--reuse may not be combined with --memorySize or --sparse\n");
-    _exit(2);
-  }
-  if (reuse && (mem_modified || use_sparse)) {
-    printf("Option conflict, cannot reuse index file ");
-    printf("while memory or index file style changed\n");
     _exit(2);
   }
 }

@@ -19,6 +19,7 @@ There are several options one can use in vdoestimator:
     --help            Print this help message and exit
     --index           Specify the location and name of the UDS index file (required)
     --memorySize      Specifies the amount of UDS server memory in gigabytes (the default size is 0.25 GB). The special decimal values 0.25, 0.5 and 0.75 can be used as can any positive integer up to 1024.
+    --progress        Print scan progress in interval
     --reuse           Reuse an existing index file
     --sparse          Use a sparse index
     --verbose         Verbose run
