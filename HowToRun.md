@@ -4,15 +4,16 @@ before creating a VDO volume. It can also be used to estimate the
 effect of configuring the index with the memorySize and sparse
 options.
 
-Usage:
+# Usage
 
-./vdoestimator --index Index_File DataLocation
+    ./vdoestimator --index Index_File DataLocation
 
 There are several options one can use in vdoestimator:
+ 
+    vdoestimator  --help
+    vdoestimator [OPTION]... PATH
 
-  vdoestimator  --help
-  vdoestimator [OPTION]... PATH
-
+```
   Options:
     --compressionOnly Calculate compression only saving
     --dedupeOnly      Calculate deduplication
@@ -22,8 +23,10 @@ There are several options one can use in vdoestimator:
     --reuse           Reuse an existing index file
     --sparse          Use a sparse index
     --verbose         Verbose run
+```
 
 There are two required arguments:
+
     --index   Specify the location and name of the UDS index file
     PATH      A directory tree or block device to be scanned
 
@@ -31,7 +34,7 @@ Changing the memorySize or sparse index may indicate a better storage
 savings rate.  Please refer to VDO documentation for the effect of
 changing these parameters.
 
-Example:
+# Example
 
 The vdoestimator output is fairly self explanatory. The important
 numbers to look at are the dedupe percentage, percent saved
@@ -40,6 +43,7 @@ represents a scan of approximately 500G of storage that contains test
 data. If this data was stored on VDO, it would realize a savings of
 approximately 72%.
 
+```
 Duration: 1h:31m:1s
 Sparse Index: 0
 Files Scanned: 2419506
@@ -54,4 +58,4 @@ Percent Saved Compression: 6.191%
 Total Bytes Used: 141808225265
 Total Percent Saved: 72.234%
 Peak Concurrent Requests: 2000
-
+```
