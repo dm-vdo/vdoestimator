@@ -437,10 +437,10 @@ int main(int argc, char *argv[])
     }
   }
 
-  result = udsSuspendIndexSession(session, 0);
-  if (result != UDS_SUCCESS) {
-    errx(1, "Unable to suspend the index session");
-  }
+  result = udsFlushIndexSession(session);
+   if (result != UDS_SUCCESS) {
+     errx(1, "Unable to flush the index session");
+   }
 
   struct udsContextStats cstats;
   result = udsGetIndexSessionStats(session, &cstats);
