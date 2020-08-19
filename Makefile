@@ -51,7 +51,7 @@ PROGS = vdoestimator
 
 SUBPROGS = lz4 uds
 
-all: third $(PROGS)
+all: third $(PROGS) test
 
 clean:
 	$(RM) $(PROGS) $(OBJECTS)
@@ -75,5 +75,9 @@ uds: download
 
 vdoestimator: $(OBJECTS) $(DEPLIBS)
 	$(CC) -o $@ $(OBJECTS) $(CDEBUGFLAGS) $(LDFLAGS)
+
+test:
+	echo "Run vdoestimator test"
+	./runTest
 
 .PHONY = install clean
