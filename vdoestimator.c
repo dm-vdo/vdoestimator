@@ -438,9 +438,9 @@ int main(int argc, char *argv[])
   }
 
   result = udsFlushIndexSession(session);
-   if (result != UDS_SUCCESS) {
-     errx(1, "Unable to flush the index session");
-   }
+  if (result != UDS_SUCCESS) {
+    errx(1, "Unable to flush the index session");
+  }
 
   struct udsContextStats cstats;
   result = udsGetIndexSessionStats(session, &cstats);
