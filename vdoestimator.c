@@ -305,7 +305,7 @@ static void usage(char *prog)
          prog);
 }
 
-static int parse_args(int argc, char *argv[])
+static void parse_args(int argc, char *argv[])
 {
   static const char *optstring = "cdhi:m:rsv";
   static const struct option longopts[]
@@ -393,7 +393,7 @@ static int parse_args(int argc, char *argv[])
 
 int main(int argc, char *argv[])
 {
-  int path_count = parse_args(argc, argv);
+  parse_args(argc, argv);
   time_t start_time = time(0);
 
   UdsConfiguration conf;
@@ -455,7 +455,7 @@ int main(int argc, char *argv[])
   }
 
   time_t time_passed = cstats.currentTime - start_time;
-  printf("Duration: %dh:%dm:%ds\n",
+  printf("Duration: %ldh:%ldm:%lds\n",
          time_passed/3600, (time_passed%3600)/60, time_passed%60);
   printf("Sparse Index: %d\n", udsConfigurationGetSparse(conf));
   printf("Files Scanned: %lu\n", files_scanned);
