@@ -45,11 +45,13 @@
 #include "uds.h"
 #include "uds-block.h"
 
+#define BLOCK_SIZE 4096
+
 struct query {
   LIST_ENTRY(query) query_list;
   struct udsRequest request;
   ssize_t data_size;
-  unsigned char data[4096];
+  unsigned char data[BLOCK_SIZE];
 };
 
 static pthread_mutex_t list_mutex;
@@ -140,7 +142,7 @@ static void put_query(struct query *query)
 
 static void try_compression(struct query *query)
 {
-  char buf[4096/2];
+  char buf[BLOCK_SIZE/2];
   int compressed_size = LZ4_compress_default((char *)query->data, buf,
                                              (int)query->data_size,
                                              sizeof(buf));
@@ -190,7 +192,7 @@ static void scan(char *file, struct uds_index_session *session)
       err(2, "Unable to allocate request");
     }
 
-    ssize_t nread = read(fd, query->data, 4096);
+    ssize_t nread = read(fd, query->data, BLOCK_SIZE);
     if (nread < 0) {
       err(1, "Unable to read '%s'", file);
     }
