@@ -76,8 +76,4 @@ uds: download
 vdoestimator: $(OBJECTS) $(DEPLIBS)
 	$(CC) -o $@ $(OBJECTS) $(CDEBUGFLAGS) $(LDFLAGS)
 
-test:
-	echo "Run vdoestimator test"
-	./runTest
-
 .PHONY = install clean
