@@ -51,7 +51,7 @@ PROGS = vdoestimator
 
 SUBPROGS = lz4 uds
 
-all: third $(PROGS) 
+all: third $(PROGS)
 
 clean:
 	$(RM) $(PROGS) $(OBJECTS)
