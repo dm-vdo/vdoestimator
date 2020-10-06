@@ -53,8 +53,13 @@ SUBPROGS = lz4 uds
 
 all: third $(PROGS)
 
+test: all
+	./runTest
+
 clean:
 	$(RM) $(PROGS) $(OBJECTS)
+
+dist-clean:
 	$(RM) -r $(BUILDROOT)
 
 download:
