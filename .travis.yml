@@ -2,3 +2,8 @@ language: c
 os: linux
 script:
   - make test
+arch:
+  - amd64
+  - arm64
+  - ppc64le
+  - s390x
