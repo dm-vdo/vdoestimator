@@ -167,6 +167,11 @@ static void chunk_callback(struct udsRequest *request)
   else {
     if (compression_only)
       try_compression(query);
+    // If the request has still not been found (see above) and we will not
+    // attempt compression, then perform the necessary accounting for use later
+    // on.
+    else if (!request->found)
+      bytes_used += query->data_size;
   }
   put_query(query);
   return;
