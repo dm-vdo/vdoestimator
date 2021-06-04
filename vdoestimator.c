@@ -42,14 +42,14 @@
 #include "errors.h"
 #include "lz4.h"
 #include "murmur/MurmurHash3.h"
+#include "opaqueTypes.h"
 #include "uds.h"
-#include "uds-block.h"
 
 #define BLOCK_SIZE 4096
 
 struct query {
   LIST_ENTRY(query) query_list;
-  struct udsRequest request;
+  struct uds_request request;
   ssize_t data_size;
   unsigned char data[BLOCK_SIZE];
 };
@@ -80,7 +80,7 @@ static bool dedupe_only = false;
 static bool reuse = false;
 static bool mem_modified = false;
 static bool verbose = false;
-UdsMemoryConfigSize mem_size;
+uds_memory_config_size_t mem_size;
 
 /**
  * Gets a query from the lookaside list, or allocates one if possible.
@@ -154,7 +154,7 @@ static void try_compression(struct query *query)
   }
 }
 
-static void chunk_callback(struct udsRequest *request)
+static void chunk_callback(struct uds_request *request)
 {
   if (request->status != UDS_SUCCESS) {
     errx(2, "Unsuccessful request %d", request->status);
@@ -202,13 +202,13 @@ static void scan(char *file, struct uds_index_session *session)
     }
     query->data_size = nread;
     total_bytes += nread;
-    query->request = (struct udsRequest) {.callback  = chunk_callback,
-                                          .session   = session,
-                                          .type      = UDS_POST,
+    query->request = (struct uds_request) {.callback  = chunk_callback,
+                                           .session   = session,
+                                           .type      = UDS_POST,
     };
     MurmurHash3_x64_128 (query->data, nread, 0x62ea60be,
-                         &query->request.chunkName);
-    int result = udsStartChunkOperation(&query->request);
+                         &query->request.chunk_name);
+    int result = uds_start_chunk_operation(&query->request);
     if (result != UDS_SUCCESS) {
       errx(1, "Unable to start request");
     }
@@ -355,7 +355,7 @@ static void parse_args(int argc, char *argv[])
           errx(1, "Illegal memory size, valid value: 1..1024, 0.25, 0.5, 0.75");
           _exit(2);
         }
-        mem_size = (UdsMemoryConfigSize)n;
+        mem_size = (uds_memory_config_size_t)n;
       }
       break;
     case 'r':
@@ -398,25 +398,25 @@ int main(int argc, char *argv[])
   parse_args(argc, argv);
   time_t start_time = time(0);
 
-  UdsConfiguration conf;
+  struct uds_configuration *conf;
 
-  int result = udsInitializeConfiguration(&conf, mem_size);
+  int result = uds_initialize_configuration(&conf, mem_size);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to initialize configuration");
   }
 
-  udsConfigurationSetSparse(conf, use_sparse);
+  uds_configuration_set_sparse(conf, use_sparse);
 
   struct uds_index_session *session;
-  result = udsCreateIndexSession(&session);
+  result = uds_create_index_session(&session);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to create an index session");
   }
 
   const struct uds_parameters params = UDS_PARAMETERS_INITIALIZER;
 
-  result = udsOpenIndex(reuse ? UDS_LOAD : UDS_CREATE,
-                        uds_index, &params, conf, session);
+  result = uds_open_index(reuse ? UDS_LOAD : UDS_CREATE,
+			  uds_index, &params, conf, session);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to open the index");
   }
@@ -439,35 +439,35 @@ int main(int argc, char *argv[])
     }
   }
 
-  result = udsFlushIndexSession(session);
+  result = uds_flush_index_session(session);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to flush the index session");
   }
 
-  struct udsContextStats cstats;
-  result = udsGetIndexSessionStats(session, &cstats);
+  struct uds_context_stats cstats;
+  result = uds_get_index_session_stats(session, &cstats);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to get context stats");
   }
 
-  UdsIndexStats stats;
-  result = udsGetIndexStats(session, &stats);
+  struct uds_index_stats stats;
+  result = uds_get_index_stats(session, &stats);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to get index stats");
   }
 
-  time_t time_passed = cstats.currentTime - start_time;
+  time_t time_passed = cstats.current_time - start_time;
   printf("Duration: %ldh:%ldm:%lds\n",
          time_passed/3600, (time_passed%3600)/60, time_passed%60);
-  printf("Sparse Index: %d\n", udsConfigurationGetSparse(conf));
+  printf("Sparse Index: %d\n", uds_configuration_get_sparse(conf));
   printf("Files Scanned: %lu\n", files_scanned);
   printf("Files Skipped: %lu\n", files_skipped);
   printf("Bytes Scanned: %lu\n", total_bytes);
-  printf("Entries Indexed: %lu\n", stats.entriesIndexed);
-  printf("Dedupe Request Posts Found: %lu\n", cstats.postsFound);
-  printf("Dedupe Request Posts Not Found: %lu\n", cstats.postsNotFound);
+  printf("Entries Indexed: %lu\n", stats.entries_indexed);
+  printf("Dedupe Request Posts Found: %lu\n", cstats.posts_found);
+  printf("Dedupe Request Posts Not Found: %lu\n", cstats.posts_not_found);
   printf("Dedupe Percentage: %2.3f%%\n",
-         ((double)cstats.postsFound/(double)cstats.requests) * 100);
+         ((double)cstats.posts_found/(double)cstats.requests) * 100);
   double saved
      = (double)compressed_bytes / (double)total_bytes;
   printf("Compressed Bytes: %lu\n", compressed_bytes);
@@ -480,11 +480,11 @@ int main(int argc, char *argv[])
   // uds does not return the corrent index size
   printf("Estimate Index Size: %luM\n", stats.diskUsed/(1024*1024));
 #endif
-  result = udsResumeIndexSession(session);
+  result = uds_resume_index_session(session);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to resume the index");
   }
-  result = udsCloseIndex(session);
+  result = uds_close_index(session);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to close the index");
   }
