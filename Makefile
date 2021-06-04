@@ -65,7 +65,7 @@ dist-clean:
 download:
 	mkdir -p $(BUILDROOT)
 	git clone https://github.com/lz4/lz4 $(BUILDROOT)/lz4
-	git clone -b unstable https://github.com/dm-vdo/vdo $(BUILDROOT)/vdo
+	git clone https://github.com/dm-vdo/vdo $(BUILDROOT)/vdo
 
 install: all
 	$(INSTALL) $(INSTALLOWNER) -m 0755 vdoestimator $(INSTALLDIR)
