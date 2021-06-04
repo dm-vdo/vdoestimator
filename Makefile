@@ -59,7 +59,7 @@ test: all
 clean:
 	$(RM) $(PROGS) $(OBJECTS)
 
-dist-clean:
+dist-clean: clean
 	$(RM) -r $(BUILDROOT)
 
 download:
