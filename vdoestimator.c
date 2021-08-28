@@ -42,7 +42,6 @@
 #include "errors.h"
 #include "lz4.h"
 #include "murmur/MurmurHash3.h"
-#include "opaqueTypes.h"
 #include "uds.h"
 
 #define BLOCK_SIZE 4096
@@ -203,8 +202,8 @@ static void scan(char *file, struct uds_index_session *session)
     query->data_size = nread;
     total_bytes += nread;
     query->request = (struct uds_request) {.callback  = chunk_callback,
-                                           .session   = session,
-                                           .type      = UDS_POST,
+					   .session   = session,
+					   .type      = UDS_POST,
     };
     MurmurHash3_x64_128 (query->data, nread, 0x62ea60be,
                          &query->request.chunk_name);
@@ -444,35 +443,29 @@ int main(int argc, char *argv[])
     errx(1, "Unable to flush the index session");
   }
 
-  struct uds_context_stats cstats;
-  result = uds_get_index_session_stats(session, &cstats);
-  if (result != UDS_SUCCESS) {
-    errx(1, "Unable to get context stats");
-  }
-
   struct uds_index_stats stats;
   result = uds_get_index_stats(session, &stats);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to get index stats");
   }
 
-  time_t time_passed = cstats.current_time - start_time;
+  time_t time_passed = stats.current_time - start_time;
   printf("Duration: %ldh:%ldm:%lds\n",
          time_passed/3600, (time_passed%3600)/60, time_passed%60);
   printf("Sparse Index: %d\n", uds_configuration_get_sparse(conf));
-  printf("Files Scanned: %lu\n", files_scanned);
-  printf("Files Skipped: %lu\n", files_skipped);
-  printf("Bytes Scanned: %lu\n", total_bytes);
-  printf("Entries Indexed: %lu\n", stats.entries_indexed);
-  printf("Dedupe Request Posts Found: %lu\n", cstats.posts_found);
-  printf("Dedupe Request Posts Not Found: %lu\n", cstats.posts_not_found);
+  printf("Files Scanned: %llu\n", files_scanned);
+  printf("Files Skipped: %llu\n", files_skipped);
+  printf("Bytes Scanned: %llu\n", total_bytes);
+  printf("Entries Indexed: %llu\n", stats.entries_indexed);
+  printf("Dedupe Request Posts Found: %llu\n", stats.posts_found);
+  printf("Dedupe Request Posts Not Found: %llu\n", stats.posts_not_found);
   printf("Dedupe Percentage: %2.3f%%\n",
-         ((double)cstats.posts_found/(double)cstats.requests) * 100);
+         ((double)stats.posts_found/(double)stats.requests) * 100);
   double saved
      = (double)compressed_bytes / (double)total_bytes;
-  printf("Compressed Bytes: %lu\n", compressed_bytes);
+  printf("Compressed Bytes: %llu\n", compressed_bytes);
   printf("Percent Saved Compression: %2.3f%%\n", saved * 100.0);
-  printf("Total Bytes Used: %lu\n", bytes_used);
+  printf("Total Bytes Used: %llu\n", bytes_used);
   saved = ((double)total_bytes - (double)bytes_used) / (double)total_bytes; 
   printf("Total Percent Saved: %2.3f%%\n", saved * 100.0);
   printf("Peak Concurrent Requests: %u\n", peak_requests);
