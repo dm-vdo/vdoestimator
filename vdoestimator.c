@@ -412,7 +412,7 @@ int main(int argc, char *argv[])
     errx(1, "Unable to create an index session");
   }
 
-  const struct uds_parameters params = UDS_PARAMETERS_INITIALIZER;
+  const struct uds_parameters params = { 0 };
 
   result = uds_open_index(reuse ? UDS_LOAD : UDS_CREATE,
 			  uds_index, &params, conf, session);
@@ -443,19 +443,13 @@ int main(int argc, char *argv[])
     errx(1, "Unable to flush the index session");
   }
 
-  struct uds_context_stats cstats;
-  result = uds_get_index_session_stats(session, &cstats);
-  if (result != UDS_SUCCESS) {
-    errx(1, "Unable to get context stats");
-  }
-
   struct uds_index_stats stats;
   result = uds_get_index_stats(session, &stats);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to get index stats");
   }
 
-  time_t time_passed = cstats.current_time - start_time;
+  time_t time_passed = stats.current_time - start_time;
   printf("Duration: %ldh:%ldm:%lds\n",
          time_passed/3600, (time_passed%3600)/60, time_passed%60);
   printf("Sparse Index: %d\n", uds_configuration_get_sparse(conf));
@@ -463,10 +457,10 @@ int main(int argc, char *argv[])
   printf("Files Skipped: %llu\n", files_skipped);
   printf("Bytes Scanned: %llu\n", total_bytes);
   printf("Entries Indexed: %llu\n", stats.entries_indexed);
-  printf("Dedupe Request Posts Found: %llu\n", cstats.posts_found);
-  printf("Dedupe Request Posts Not Found: %llu\n", cstats.posts_not_found);
+  printf("Dedupe Request Posts Found: %llu\n", stats.posts_found);
+  printf("Dedupe Request Posts Not Found: %llu\n", stats.posts_not_found);
   printf("Dedupe Percentage: %2.3f%%\n",
-         ((double)cstats.posts_found/(double)cstats.requests) * 100);
+         ((double)stats.posts_found/(double)stats.requests) * 100);
   double saved
      = (double)compressed_bytes / (double)total_bytes;
   printf("Compressed Bytes: %llu\n", compressed_bytes);
