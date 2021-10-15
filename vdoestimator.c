@@ -41,7 +41,7 @@
 
 #include "errors.h"
 #include "lz4.h"
-#include "murmur/MurmurHash3.h"
+#include "linux/murmurhash3.h"
 #include "uds.h"
 
 #define BLOCK_SIZE 4096
@@ -202,11 +202,11 @@ static void scan(char *file, struct uds_index_session *session)
     query->data_size = nread;
     total_bytes += nread;
     query->request = (struct uds_request) {.callback  = chunk_callback,
-					   .session   = session,
-					   .type      = UDS_POST,
+                                           .session   = session,
+                                           .type      = UDS_POST,
     };
-    MurmurHash3_x64_128 (query->data, nread, 0x62ea60be,
-                         &query->request.chunk_name);
+    murmurhash3_128 (query->data, nread, 0x62ea60be,
+                     &query->request.chunk_name);
     int result = uds_start_chunk_operation(&query->request);
     if (result != UDS_SUCCESS) {
       errx(1, "Unable to start request");
@@ -397,25 +397,18 @@ int main(int argc, char *argv[])
   parse_args(argc, argv);
   time_t start_time = time(0);
 
-  struct uds_configuration *conf;
-
-  int result = uds_initialize_configuration(&conf, mem_size);
-  if (result != UDS_SUCCESS) {
-    errx(1, "Unable to initialize configuration");
-  }
-
-  uds_configuration_set_sparse(conf, use_sparse);
-
   struct uds_index_session *session;
-  result = uds_create_index_session(&session);
+  int result = uds_create_index_session(&session);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to create an index session");
   }
 
-  const struct uds_parameters params = { 0 };
+  const struct uds_parameters params = {
+    .name = uds_index,
+    .memory_size = mem_size,
+    .sparse = use_sparse};
 
-  result = uds_open_index(reuse ? UDS_LOAD : UDS_CREATE,
-			  uds_index, &params, conf, session);
+  result = uds_open_index(reuse ? UDS_LOAD : UDS_CREATE, &params, session);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to open the index");
   }
@@ -452,7 +445,7 @@ int main(int argc, char *argv[])
   time_t time_passed = stats.current_time - start_time;
   printf("Duration: %ldh:%ldm:%lds\n",
          time_passed/3600, (time_passed%3600)/60, time_passed%60);
-  printf("Sparse Index: %d\n", uds_configuration_get_sparse(conf));
+  printf("Sparse Index: %d\n", use_sparse);
   printf("Files Scanned: %llu\n", files_scanned);
   printf("Files Skipped: %llu\n", files_skipped);
   printf("Bytes Scanned: %llu\n", total_bytes);
