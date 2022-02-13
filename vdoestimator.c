@@ -473,10 +473,6 @@ int main(int argc, char *argv[])
   // uds does not return the corrent index size
   printf("Estimate Index Size: %luM\n", stats.diskUsed/(1024*1024));
 #endif
-  result = uds_resume_index_session(session);
-  if (result != UDS_SUCCESS) {
-    errx(1, "Unable to resume the index");
-  }
   result = uds_close_index(session);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to close the index");
