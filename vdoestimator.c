@@ -72,7 +72,7 @@ static uint64_t total_bytes = 0;
 static uint64_t compressed_bytes = 0;
 static uint64_t bytes_used = 0;
 
-static char *uds_index = NULL;
+static char *index_name = NULL;
 static bool use_sparse = false;
 static bool compression_only = false;
 static bool dedupe_only = false;
@@ -337,7 +337,7 @@ static void parse_args(int argc, char *argv[])
       _exit(0);
       break;
     case 'i':
-      uds_index = optarg;
+      index_name = optarg;
       break;
     case 'm':
       mem_modified = true;
@@ -377,7 +377,7 @@ static void parse_args(int argc, char *argv[])
     usage(argv[0]);
     _exit(2);
   }
-  if (uds_index == NULL) {
+  if (index_name == NULL) {
     printf("Index file is required\n");
     usage(argv[0]);
     _exit(2);
@@ -404,7 +404,7 @@ int main(int argc, char *argv[])
   }
 
   const struct uds_parameters params = {
-    .name = uds_index,
+    .name = index_name,
     .memory_size = mem_size,
     .sparse = use_sparse};
 
@@ -462,11 +462,8 @@ int main(int argc, char *argv[])
   saved = ((double)total_bytes - (double)bytes_used) / (double)total_bytes; 
   printf("Total Percent Saved: %2.3f%%\n", saved * 100.0);
   printf("Peak Concurrent Requests: %u\n", peak_requests);
-#if 0
-  // uds does not return the corrent index size
-  printf("Estimate Index Size: %luM\n", stats.diskUsed/(1024*1024));
-#endif
-  result = uds_resume_index_session(session);
+
+  result = uds_resume_index_session(session, index_name);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to resume the index");
   }
