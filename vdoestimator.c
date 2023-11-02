@@ -40,8 +40,10 @@
 #include <unistd.h>
 
 #include "errors.h"
+#include "fileUtils.h"
+#include "linux/blkdev.h"
 #include "lz4.h"
-#include "linux/murmurhash3.h"
+#include "murmurhash3.h"
 #include "uds.h"
 
 #define BLOCK_SIZE 4096
@@ -73,6 +75,7 @@ static uint64_t compressed_bytes = 0;
 static uint64_t bytes_used = 0;
 
 static char *index_name = NULL;
+static struct block_device *uds_device = NULL;
 static bool use_sparse = false;
 static bool compression_only = false;
 static bool dedupe_only = false;
@@ -80,6 +83,35 @@ static bool reuse = false;
 static bool mem_modified = false;
 static bool verbose = false;
 uds_memory_config_size_t mem_size;
+
+static struct block_device *parse_device(const char *name)
+{
+  int result;
+  int fd;
+  struct block_device *device;
+
+  fd = open(name, O_RDWR | O_CREAT, 0600);
+
+  if (fd < 0) {
+    errx(1, "Cannot open %s", name);
+  }
+
+  device = malloc(sizeof(struct block_device));
+  if (device == NULL) {
+    close_file(fd, NULL);
+    errx(1, "Cannot allocate device structure");
+  }
+
+  device->fd = fd;
+  return device;
+}
+
+static void free_device(struct block_device *device)
+{
+  close_file(device->fd, NULL);
+  free(device);
+  device = NULL;
+}
 
 /**
  * Gets a query from the lookaside list, or allocates one if possible.
@@ -205,9 +237,8 @@ static void scan(char *file, struct uds_index_session *session)
                                            .session   = session,
                                            .type      = UDS_POST,
     };
-    murmurhash3_128 (query->data, nread, 0x62ea60be,
-                     &query->request.chunk_name);
-    int result = uds_start_chunk_operation(&query->request);
+    murmurhash3_128(query->data, nread, 0x62ea60be, &query->request.record_name);
+    int result = uds_launch_request(&query->request);
     if (result != UDS_SUCCESS) {
       errx(1, "Unable to start request");
     }
@@ -338,6 +369,7 @@ static void parse_args(int argc, char *argv[])
       break;
     case 'i':
       index_name = optarg;
+      uds_device = parse_device(index_name);
       break;
     case 'm':
       mem_modified = true;
@@ -404,7 +436,7 @@ int main(int argc, char *argv[])
   }
 
   const struct uds_parameters params = {
-    .name = index_name,
+    .bdev = uds_device,
     .memory_size = mem_size,
     .sparse = use_sparse};
 
@@ -437,7 +469,7 @@ int main(int argc, char *argv[])
   }
 
   struct uds_index_stats stats;
-  result = uds_get_index_stats(session, &stats);
+  result = uds_get_index_session_stats(session, &stats);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to get index stats");
   }
@@ -467,6 +499,7 @@ int main(int argc, char *argv[])
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to close the index");
   }
+  free_device(uds_device);
   pthread_mutex_destroy(&list_mutex);
   return 0;
  }
