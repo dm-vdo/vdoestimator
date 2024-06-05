@@ -440,6 +440,9 @@ int main(int argc, char *argv[])
     .memory_size = mem_size,
     .sparse = use_sparse};
 
+  /* Set the size of the simulated device to maximum. */
+  uds_device->size = SIZE_MAX;
+
   result = uds_open_index(reuse ? UDS_LOAD : UDS_CREATE, &params, session);
   if (result != UDS_SUCCESS) {
     errx(1, "Unable to open the index");
