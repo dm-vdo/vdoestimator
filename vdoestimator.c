@@ -486,7 +486,7 @@ int main(int argc, char *argv[])
 
   time_t time_passed = stats.current_time - start_time;
   printf("Duration: %ldh:%ldm:%lds\n",
-         time_passed/3600, (time_passed%3600)/60, time_passed%60);
+         time_passed / 3600, (time_passed % 3600) / 60, time_passed % 60);
   printf("Sparse Index: %d\n", use_sparse);
   printf("Files Scanned: %llu\n", files_scanned);
   printf("Files Skipped: %llu\n", files_skipped);
@@ -496,15 +496,16 @@ int main(int argc, char *argv[])
     printf("Dedupe Blocks Found: %llu\n", stats.posts_found);
     printf("Dedupe Blocks Not Found: %llu\n", stats.posts_not_found);
     printf("Dedupe Percentage: %2.3f%%\n",
-	   ((double)stats.posts_found/(double)stats.requests) * 100.0);
-  } else {
-    printf("Dedupe Percentage: %2.3f%%\n", 0.0);
+	   ((double)stats.posts_found / (double)stats.requests) * 100.0);
   }
-  double saved = (double)compressed_bytes / (double)total_bytes;
-  printf("Compressed Bytes: %llu\n", compressed_bytes);
-  printf("Percent Saved Compression: %2.3f%%\n", saved * 100.0);
+  if (!dedupe_only) {
+    double compression_saved = (double)compressed_bytes / (double)total_bytes;
+    printf("Compressed Bytes: %llu\n", compressed_bytes);
+    printf("Percent Saved Compression: %2.3f%%\n", compression_saved * 100.0);
+  }
   printf("Total Bytes Used: %llu\n", bytes_used);
-  saved = ((double)total_bytes - (double)bytes_used) / (double)total_bytes; 
+  double saved
+    = ((double)total_bytes - (double)bytes_used) / (double)total_bytes; 
   printf("Total Percent Saved: %2.3f%%\n", saved * 100.0);
   printf("Peak Concurrent Requests: %u\n", peak_requests);
 
