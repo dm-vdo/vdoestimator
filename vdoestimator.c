@@ -171,6 +171,10 @@ static void put_query(struct query *query)
   }
 }
 
+/**
+ * Attempts to compress to < 1/2 size and adjusts compressed_bytes and
+ * bytes_used accordingly.
+ **/
 static void try_compression(struct query *query)
 {
   char buf[BLOCK_SIZE/2];
@@ -191,14 +195,17 @@ static void chunk_callback(struct uds_request *request)
     errx(2, "Unsuccessful request %d", request->status);
   }
   struct query *query = container_of(request, struct query, request);
-  // If not found, i. e., a never seen before block, compute its
-  // compressability.
-  if (!request->found && !dedupe_only)
-    try_compression(query);
-  else {
-    if(compression_only)
+
+  if (request->found) {
+    if (compression_only)
       try_compression(query);
-  }
+  } else {    
+    if (dedupe_only)
+      bytes_used += query->data_size;
+    else
+      try_compression(query);
+  }  
+
   put_query(query);
   return;
 }
@@ -484,13 +491,16 @@ int main(int argc, char *argv[])
   printf("Files Scanned: %llu\n", files_scanned);
   printf("Files Skipped: %llu\n", files_skipped);
   printf("Bytes Scanned: %llu\n", total_bytes);
-  printf("Entries Indexed: %llu\n", stats.entries_indexed);
-  printf("Dedupe Request Posts Found: %llu\n", stats.posts_found);
-  printf("Dedupe Request Posts Not Found: %llu\n", stats.posts_not_found);
-  printf("Dedupe Percentage: %2.3f%%\n",
-         ((double)stats.posts_found/(double)stats.requests) * 100);
-  double saved
-     = (double)compressed_bytes / (double)total_bytes;
+  if (!compression_only) {
+    printf("Entries Indexed: %llu\n", stats.entries_indexed);
+    printf("Dedupe Blocks Found: %llu\n", stats.posts_found);
+    printf("Dedupe Blocks Not Found: %llu\n", stats.posts_not_found);
+    printf("Dedupe Percentage: %2.3f%%\n",
+	   ((double)stats.posts_found/(double)stats.requests) * 100.0);
+  } else {
+    printf("Dedupe Percentage: %2.3f%%\n", 0.0);
+  }
+  double saved = (double)compressed_bytes / (double)total_bytes;
   printf("Compressed Bytes: %llu\n", compressed_bytes);
   printf("Percent Saved Compression: %2.3f%%\n", saved * 100.0);
   printf("Total Bytes Used: %llu\n", bytes_used);
